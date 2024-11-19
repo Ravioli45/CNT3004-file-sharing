@@ -1,36 +1,76 @@
 import threading
 import socket
+from pathlib import Path
 
-IP = "127.0.0.1" #socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname(socket.gethostname())
 PORT = 3300
 BUFFER_SIZE = 1024
 FORMAT = "utf-8"
+BASE_DIR = Path("./data").resolve()
 
 ADDR = (IP, PORT)
+
+def send_ok(connection: socket, message = ""):
+    connection.send(f"OK {message}".encode('utf-8'))
+
+def send_err(connection: socket, message: str):
+    connection.send(f"ERR {message}".encode('utf-8'))
+
+def is_valid_path(other_path: Path) -> bool:
+    return other_path.is_relative_to(BASE_DIR)
 
 def logon(connection: socket) -> bool:
     data = connection.recv(1024).decode(FORMAT)
     return data == "LOGON"
+
+def handle_upload(connection: socket, params: list[str]):
+    
+    file_bytes, file_name = int(params[0]), params[1]
+    destination = ""
+
+    if len(params) == 3:
+        destination = params[2]
+
+    chunks = (file_bytes//BUFFER_SIZE)+1
+
+    target_file = (BASE_DIR / destination / file_name).resolve()
+    
+    if not is_valid_path(target_file):
+        send_err(connection)
+        return
+    
+    send_ok(connection)
+
+    with target_file.open("wb") as file:
+        for i in range(chunks):
+            data = connection.recv(BUFFER_SIZE)
+            file.write(data)
+    
+    send_ok(connection)
+
 
 def handle_connection(connection: socket, address):
 
     print(f"[*] Established connection: {address}")
 
     if not logon(connection):
-        connection.send("ERR".encode(FORMAT))
+        send_err(connection)
         connection.close()
         print(f"[*] Connection closed: {address}")
         return
 
-    connection.send("OK".encode(FORMAT))
+    send_ok(connection)
 
     while True:
         data = connection.recv(BUFFER_SIZE).decode("utf-8")
 
         command = data.split(' ')
 
-        if data == "LOGOUT":
-            break
+        match command[0]:
+            case "LOGOFF":
+                break
+            case "UPLOAD":
+                handle_upload(connection, command[1:])
 
         connection.send(f"---> {data}".encode("utf-8"))
 
@@ -39,6 +79,10 @@ def handle_connection(connection: socket, address):
 
 
 def main():
+
+    if not BASE_DIR.is_dir():
+        BASE_DIR.mkdir()
+
     print("[*] Starting Server...")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(ADDR)
