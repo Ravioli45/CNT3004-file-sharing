@@ -31,8 +31,6 @@ def handle_upload(connection: socket, params: list[str]):
     if len(params) == 3:
         destination = params[2]
 
-    chunks = (file_bytes//BUFFER_SIZE)+1
-
     target_file = (BASE_DIR / destination / file_name).resolve()
     
     if not is_valid_path(target_file):
@@ -41,9 +39,13 @@ def handle_upload(connection: socket, params: list[str]):
     
     send_ok(connection)
 
+    total_received = 0
     with target_file.open("wb") as file:
-        for i in range(chunks):
+        while total_received < file_bytes:
             data = connection.recv(BUFFER_SIZE)
+            len_received = len(data)
+
+            total_received += len_received
             file.write(data)
     
     send_ok(connection)
