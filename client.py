@@ -41,7 +41,34 @@ def download(client: socket, srcPath: str, destPath: str):
     pass
         
 def upload(client: socket, srcPath: str, destPath: str):
-    pass
+    if not os.path.isfile(srcPath):
+        print("[!] Could not find file to upload.")
+        return
+    
+    fileBytes = os.path.getsize(srcPath)
+
+    with open(srcPath, "rb") as file:
+        print(f"[*] Preparing {fileBytes} bytes to send to the server")
+
+        sendMsg(client, f"UPLOAD {fileBytes} {srcPath} {destPath}")
+
+        data = receiveMsg(client)
+
+        if data.startswith("ERR"):
+            print(f"[!] Server encountered an error: {data}")
+            return
+        
+        bytesSent = 0
+        while bytesSent < fileBytes:
+            bytesSent += SIZE
+            client.send(file.read(SIZE))
+
+        data = receiveMsg(client)
+
+        if data.startswith("OK"):
+            print(f"[*] Successfully uploaded file: {data}")
+        elif data.startswith("ERR"):
+            print(f"[!] Server error occurred when uploading file: {data}")
 
 
 def main():
@@ -57,7 +84,10 @@ def main():
         elif cmd == "DOWNLOAD":
             pass
         elif cmd == "UPLOAD":
-            pass
+            if len(data) >= 3:
+                upload(client, data[1], data[2])
+            else:
+                upload(client, data[1], "")
 
 
 if __name__ == "__main__":
