@@ -10,13 +10,13 @@ BASE_DIR = Path("./data").resolve()
 
 ADDR = (IP, PORT)
 
-def send_ok(connection: socket, message = None):
+def send_ok(connection: socket, message: str | None = None):
     if message is None:
         connection.send("OK".encode('utf-8'))
     else:
         connection.send(f"OK {message}".encode('utf-8'))
 
-def send_err(connection: socket, message = None):
+def send_err(connection: socket, message: str | None = None):
     if message is None:
         connection.send("ERR".encode('utf-8'))
     else:
@@ -79,6 +79,38 @@ def handle_download(connection: socket, params: list[str]):
     
     send_ok(connection)
 
+def handle_delete():
+    pass
+
+def handle_dir(connection: socket, params: list[str]):
+    directory = "."
+
+    if len(params) == 1:
+        directory = params[0]
+
+    target_directory = (BASE_DIR / directory).resolve()
+    #print(target_directory)
+    #print(target_directory.relative_to(BASE_DIR))
+
+    if not is_valid_path(target_directory) or not target_directory.is_dir():
+        send_err(connection)
+        return
+    
+
+    directory_info = "\""
+
+    for object in target_directory.iterdir():
+        if object.is_dir():
+            directory_info += f"directory {object.relative_to(BASE_DIR)}\n"
+        else:
+            directory_info += f"file {object.relative_to(BASE_DIR)}\n"
+    directory_info += "\""
+
+    send_ok(connection, directory_info)
+
+def handle_subfolder():
+    pass
+
 def handle_connection(connection: socket, address):
 
     print(f"[*] Established connection: {address}")
@@ -103,6 +135,14 @@ def handle_connection(connection: socket, address):
                 handle_upload(connection, command[1:])
             case "DOWNLOAD":
                 handle_download(connection, command[1:])
+            case "DELETE":
+                pass
+            case "DIR":
+                handle_dir(connection, command[1:])
+            case "SUBFOLDER":
+                pass
+            case _:
+                pass
 
 
     connection.close()
