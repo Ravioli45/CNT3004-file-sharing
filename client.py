@@ -38,7 +38,44 @@ def logout(client: socket):
 
 # Download from server's srcPath to client's destPath
 def download(client: socket, srcPath: str, destPath: str):
-    pass
+    
+    # User might have omitted the file name from the destination path. If so, add it.
+    fileName = Path(srcPath).name
+    if not destPath.endswith(fileName):
+        destPath = str(Path(destPath) / fileName)
+
+    # Ensure user wants to overwrite an existing file
+    if os.path.isfile(destPath):
+        c = 0
+        while c != "y" and c != "n":
+            c = input("[?] A file already exists at this location. Overwrite it? (y/n): ")
+
+        if c == "n":
+            return
+        
+    sendMsg(client, f"DOWNLOAD {srcPath}")
+    data = receiveMsg(client)
+
+    if data.startswith("ERR"):
+        print(f"[*] Server encountered an error when locating file: {data}")
+        return
+
+    fileBytes = int(data.split(" ")[1])
+    print(f"[*] Preparing to receive {fileBytes} bytes from server.")
+
+    with open(destPath, "wb") as file:
+
+        sendMsg(client, "OK")
+        received = 0
+        while received < fileBytes:
+            file.write(client.recv(SIZE))
+            received += SIZE
+
+        res = receiveMsg(client)
+        if res.startswith("OK"):
+            print(f"[*] File successfully downloaded from server: {res}")
+        elif res.startswith("ERR"):
+            print(f"[!] Server encountered error when downloading: {res}")
         
 def upload(client: socket, srcPath: str, destPath: str):
     if not os.path.isfile(srcPath):
@@ -82,7 +119,10 @@ def main():
             logout(client)
             break
         elif cmd == "DOWNLOAD":
-            pass
+            if len(data) >= 3:
+                download(client, data[1], data[2])
+            else:
+                download(client, data[1], "./")
         elif cmd == "UPLOAD":
             if len(data) >= 3:
                 upload(client, data[1], data[2])
