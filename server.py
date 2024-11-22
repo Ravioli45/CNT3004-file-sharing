@@ -2,7 +2,7 @@ import threading
 import socket
 from pathlib import Path
 
-IP = socket.gethostbyname(socket.gethostname())
+IP = "127.0.0.1" #socket.gethostbyname(socket.gethostname())
 PORT = 3300
 BUFFER_SIZE = 1024
 FORMAT = "utf-8"
@@ -39,7 +39,7 @@ def handle_upload(connection: socket, params: list[str]):
 
     target_file = (BASE_DIR / destination / file_name).resolve()
     
-    if not is_valid_path(target_file):
+    if not is_valid_path(target_file) or target_file.is_dir():
         send_err(connection)
         return
     
@@ -108,8 +108,49 @@ def handle_dir(connection: socket, params: list[str]):
 
     send_ok(connection, directory_info)
 
-def handle_subfolder():
-    pass
+def create_subfolder(connection: socket, target_directory: Path):
+
+    try:
+        target_directory.mkdir()
+        send_ok(connection)
+    except Exception:
+        send_err(connection, "\"Can't create directory\"")
+
+def delete_subfolder(connection: socket, target_directory: Path):
+
+    if target_directory == BASE_DIR or not target_directory.is_dir():
+        send_err(connection)
+        return
+    
+    try:
+        target_directory.rmdir()
+        send_ok(connection)
+    except OSError:
+        send_err(connection, "\"Can't delete non-empty folder\"")
+
+
+def handle_subfolder(connection: socket, params: list[int]):
+    
+    # should be CREATE or DELETE
+    action = params[0]
+
+    directory = params[1]
+
+    target_directory = (BASE_DIR / directory).resolve()
+
+    if not is_valid_path(target_directory) or target_directory.is_file():
+        send_err(connection)
+        return
+    
+    match action:
+        case "CREATE":
+            create_subfolder(connection, target_directory)
+        case "DELETE":
+            delete_subfolder(connection, target_directory)
+        case _:
+            pass
+
+
 
 def handle_connection(connection: socket, address):
 
@@ -140,7 +181,7 @@ def handle_connection(connection: socket, address):
             case "DIR":
                 handle_dir(connection, command[1:])
             case "SUBFOLDER":
-                pass
+                handle_subfolder(connection, command[1:])
             case _:
                 pass
 
