@@ -10,4 +10,5 @@ class Analyze;
 
     def analyze_stats(self, FileName, DownloadSize, UploadSize):
         t = threading.Thread(target=self.analyze)
+        #not done
         
