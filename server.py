@@ -1,62 +1,86 @@
 import threading
 import socket
 from pathlib import Path
+from collections import defaultdict
 
-IP = "127.0.0.1" #socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname(socket.gethostname())
 PORT = 3300
 BUFFER_SIZE = 1024
 FORMAT = "utf-8"
 BASE_DIR = Path("./data").resolve()
+FILE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(lambda : threading.Lock())
 
 ADDR = (IP, PORT)
 
-def send_ok(connection: socket, message: str | None = None):
+def send_ok(connection: socket.socket, message: str | None = None):
     if message is None:
         connection.send("OK".encode('utf-8'))
     else:
         connection.send(f"OK {message}".encode('utf-8'))
 
-def send_err(connection: socket, message: str | None = None):
+def send_err(connection: socket.socket, message: str | None = None):
     if message is None:
         connection.send("ERR".encode('utf-8'))
     else:
         connection.send(f"ERR {message}".encode('utf-8'))
 
+def send_overwrite(connection: socket.socket):
+    connection.send("OVR".encode('utf-8'))
+
 def is_valid_path(other_path: Path) -> bool:
     return other_path.is_relative_to(BASE_DIR)
 
-def logon(connection: socket) -> bool:
+def logon(connection: socket.socket) -> bool:
     data = connection.recv(1024).decode(FORMAT)
     return data == "LOGON"
 
-def handle_upload(connection: socket, params: list[str]):
-    
+def handle_upload(connection: socket.socket, params: list[str]):
+    #print("u", params)
     file_bytes, file_name = int(params[0]), params[1]
     destination = ""
 
     if len(params) == 3:
         destination = params[2]
 
-    target_file = (BASE_DIR / destination / file_name).resolve()
+    target_file: Path = (BASE_DIR / destination / file_name).resolve()
     
     if not is_valid_path(target_file) or target_file.is_dir():
         send_err(connection)
         return
     
-    send_ok(connection)
+    #send_ok(connection)
 
-    total_received = 0
-    with target_file.open("wb") as file:
-        while total_received < file_bytes:
-            data = connection.recv(BUFFER_SIZE)
-            len_received = len(data)
+    if FILE_LOCKS[str(target_file)].acquire(False):
 
-            total_received += len_received
-            file.write(data)
-    
-    send_ok(connection)
+        if target_file.is_file():
+            send_overwrite(connection)
 
-def handle_download(connection: socket, params: list[str]):
+            answer = connection.recv(BUFFER_SIZE).decode('utf-8')
+            #print(answer)
+            if not answer.startswith("OK"):
+                send_err(connection)
+                return
+
+        send_ok(connection)
+
+        #print("before u receive")
+        total_received = 0
+        with target_file.open("wb") as file:
+            while total_received < file_bytes:
+                data = connection.recv(BUFFER_SIZE)
+                len_received = len(data)
+
+                total_received += len_received
+                file.write(data)
+        
+        FILE_LOCKS[str(target_file)].release()
+
+        send_ok(connection)
+        #print("u done")
+    else:
+        send_err(connection, "\"File is already being used\"")
+
+def handle_download(connection: socket.socket, params: list[str]):
     
     file_path = (BASE_DIR / params[0]).resolve()
 
@@ -64,23 +88,48 @@ def handle_download(connection: socket, params: list[str]):
         send_err(connection)
         return
     
-    # send OK (file size in bytes)
-    send_ok(connection, file_path.stat().st_size)
+    if FILE_LOCKS[str(file_path)].acquire(False):
 
-    # awaits OK from client before sending file
-    data = connection.recv(1024).decode(FORMAT)
+        send_ok(connection, file_path.stat().st_size)
 
-    if not data == "OK":
+        # awaits OK from client before sending file
+        data = connection.recv(1024).decode(FORMAT)
+
+        if not data == "OK":
+            send_err(connection)
+            return
+
+        with file_path.open('rb') as file:
+            connection.sendfile(file)
+
+        # awaits OK from client after receiving file
+        data = connection.recv(1024).decode(FORMAT)
+
+        FILE_LOCKS[str(file_path)].release()
+        send_ok(connection)
+
+    else:
+        send_err(connection, "\"File is already being used\"")
+
+
+def handle_delete(connection: socket, params: list[str]):
+    
+    file_path = (BASE_DIR / params[0]).resolve()
+
+    if not is_valid_path(file_path) or not file_path.is_file():
         send_err(connection)
         return
-
-    with file_path.open('rb') as file:
-        connection.sendfile(file)
     
-    send_ok(connection)
+    if FILE_LOCKS[str(file_path)].acquire(False):
 
-def handle_delete():
-    pass
+        file_path.unlink()
+        send_ok(connection)
+
+        FILE_LOCKS[str(file_path)].release()
+
+        del FILE_LOCKS[str(file_path)]
+    else:
+        send_err(connection, "\"Unable to delete file that is being used\"")
 
 def handle_dir(connection: socket, params: list[str]):
     directory = "."
@@ -177,7 +226,7 @@ def handle_connection(connection: socket, address):
             case "DOWNLOAD":
                 handle_download(connection, command[1:])
             case "DELETE":
-                pass
+                handle_delete(connection, command[1:])
             case "DIR":
                 handle_dir(connection, command[1:])
             case "SUBFOLDER":
