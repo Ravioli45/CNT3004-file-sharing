@@ -49,7 +49,8 @@ def logout(client: socket):
     disconnects the client from the server
     """
     print("[*] Logging out...")
-    sendMsg(client, "LOGOUT")
+    sendMsg(client, "LOGOFF")
+    client.close()
 
 # Download from server's srcPath to client's destPath
 def download(client: socket, srcPath: str, destPath: str):
