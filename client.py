@@ -5,7 +5,7 @@ import socket
 from pathlib import Path
 
 
-IP = "192.168.141.92"
+IP = "127.0.0.1"
 PORT = 3300
 ADDR = (IP, PORT)
 
@@ -94,6 +94,18 @@ def upload(client: socket, srcPath: str, destPath: str):
         if data.startswith("ERR"):
             print(f"[!] Server encountered an error: {data}")
             return
+        elif data.startswith("OVR"):
+            c = 0
+            while c != 'y' and c != 'n':
+                c = input(f"[?] This file already exists on the server. Do you want to overwrite it? (y/n): ").strip()
+            
+            if c == 'n':
+                sendMsg(client, "ERR: client does not want to overwite file")
+                print("[*] Permission to overwrite file denied.")
+                return
+            else:
+                sendMsg(client, "OK: overwrite file")
+                print("[*] Permission to overwrite file granted.")
         
         bytesSent = 0
         while bytesSent < fileBytes:
@@ -113,21 +125,25 @@ def main():
     while True:
         data = input("\n> ") 
         data = data.split(" ")
-        cmd = data[0]
+        cmd = data[0].lower()
 
-        if cmd == "LOGOUT":
+        if cmd == "logout":
             logout(client)
             break
-        elif cmd == "DOWNLOAD":
+        elif cmd == "download":
             if len(data) >= 3:
                 download(client, data[1], data[2])
             else:
                 download(client, data[1], "./")
-        elif cmd == "UPLOAD":
+        elif cmd == "upload":
             if len(data) >= 3:
                 upload(client, data[1], data[2])
             else:
                 upload(client, data[1], "")
+        elif cmd == "delete":
+            pass
+        elif cmd == "subfolder":
+            pass
 
 
 if __name__ == "__main__":
