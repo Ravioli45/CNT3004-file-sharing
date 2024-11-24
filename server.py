@@ -3,12 +3,13 @@ import socket
 from pathlib import Path
 from collections import defaultdict
 
-IP = socket.gethostbyname(socket.gethostname())
+IP = "127.0.0.1" #socket.gethostbyname(socket.gethostname())
 PORT = 3300
 BUFFER_SIZE = 1024
 FORMAT = "utf-8"
 BASE_DIR = Path("./data").resolve()
 FILE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(lambda : threading.Lock())
+SHUTDOWN = False
 
 ADDR = (IP, PORT)
 
@@ -135,7 +136,7 @@ def handle_download(connection: socket.socket, params: list[str]):
         send_err(connection, "\"File is already being used\"")
 
 
-def handle_delete(connection: socket, params: list[str]):
+def handle_delete(connection: socket.socket, params: list[str]):
     """
     function for handling a delete request across a given connection
 
@@ -159,7 +160,7 @@ def handle_delete(connection: socket, params: list[str]):
     else:
         send_err(connection, "\"Unable to delete file that is being used\"")
 
-def handle_dir(connection: socket, params: list[str]):
+def handle_dir(connection: socket.socket, params: list[str]):
     """
     function for handling a dir request across a given connection
 
@@ -188,7 +189,7 @@ def handle_dir(connection: socket, params: list[str]):
 
     send_ok(connection, directory_info)
 
-def create_subfolder(connection: socket, target_directory: Path):
+def create_subfolder(connection: socket.socket, target_directory: Path):
     """
     helper function used by handle_subfolder in order to create a new folder at a given path
     """
@@ -198,7 +199,7 @@ def create_subfolder(connection: socket, target_directory: Path):
     except Exception:
         send_err(connection, "\"Can't create directory\"")
 
-def delete_subfolder(connection: socket, target_directory: Path):
+def delete_subfolder(connection: socket.socket, target_directory: Path):
     """
     helper function used by handle_subfolder in order to delete a new folder at a given path
     """
@@ -213,7 +214,7 @@ def delete_subfolder(connection: socket, target_directory: Path):
         send_err(connection, "\"Can't delete non-empty folder\"")
 
 
-def handle_subfolder(connection: socket, params: list[int]):
+def handle_subfolder(connection: socket.socket, params: list[int]):
     """
     function for handling a subfolder request across a given connection
 
@@ -242,7 +243,7 @@ def handle_subfolder(connection: socket, params: list[int]):
 
 
 
-def handle_connection(connection: socket, address):
+def handle_connection(connection: socket.socket, address):
     """
     general function for handling the connection between server and client during a session
 
@@ -258,26 +259,32 @@ def handle_connection(connection: socket, address):
 
     send_ok(connection)
 
+    connection.settimeout(1.0)
+
     while True:
-        data = connection.recv(BUFFER_SIZE).decode(FORMAT)
+        try:
+            data = connection.recv(BUFFER_SIZE).decode(FORMAT)
 
-        command = data.split(' ')
+            command = data.split(' ')
 
-        match command[0]:
-            case "LOGOFF":
+            match command[0]:
+                case "LOGOFF":
+                    break
+                case "UPLOAD":
+                    handle_upload(connection, command[1:])
+                case "DOWNLOAD":
+                    handle_download(connection, command[1:])
+                case "DELETE":
+                    handle_delete(connection, command[1:])
+                case "DIR":
+                    handle_dir(connection, command[1:])
+                case "SUBFOLDER":
+                    handle_subfolder(connection, command[1:])
+                case _:
+                    pass
+        except socket.timeout:
+            if SHUTDOWN:
                 break
-            case "UPLOAD":
-                handle_upload(connection, command[1:])
-            case "DOWNLOAD":
-                handle_download(connection, command[1:])
-            case "DELETE":
-                handle_delete(connection, command[1:])
-            case "DIR":
-                handle_dir(connection, command[1:])
-            case "SUBFOLDER":
-                handle_subfolder(connection, command[1:])
-            case _:
-                pass
 
 
     connection.close()
@@ -290,6 +297,7 @@ def main():
 
     listens for new connections and creates threads when a user connects to the server
     """
+    global SHUTDOWN
 
     if not BASE_DIR.is_dir():
         BASE_DIR.mkdir()
@@ -303,16 +311,23 @@ def main():
 
     print(f"[*] Server is listening on {IP}:{PORT}")
 
-    while True:
-        try:
-            (connection, address) = server.accept()
+    try:
+        while True:
+            try:
+                (connection, address) = server.accept()
 
-            thread = threading.Thread(target=handle_connection, args=(connection, address))
+                thread = threading.Thread(target=handle_connection, args=(connection, address))
 
-            thread.start()
-        
-        except socket.timeout:
-            pass
+                thread.start()
+            
+            except socket.timeout:
+                pass
+            except KeyboardInterrupt:
+                pass
+
+    except KeyboardInterrupt:
+        print("[*] Shutting down...")
+        SHUTDOWN = True
 
 
 
