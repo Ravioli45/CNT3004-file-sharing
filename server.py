@@ -13,29 +13,49 @@ FILE_LOCKS: defaultdict[str, threading.Lock] = defaultdict(lambda : threading.Lo
 ADDR = (IP, PORT)
 
 def send_ok(connection: socket.socket, message: str | None = None):
+    """sends an OK code across the given connection with the given message"""
     if message is None:
         connection.send("OK".encode('utf-8'))
     else:
         connection.send(f"OK {message}".encode('utf-8'))
 
 def send_err(connection: socket.socket, message: str | None = None):
+    """sends an ERR code across the given connection with the given message"""
     if message is None:
         connection.send("ERR".encode('utf-8'))
     else:
         connection.send(f"ERR {message}".encode('utf-8'))
 
 def send_overwrite(connection: socket.socket):
+    """sends an OVR code across the diven connection"""
     connection.send("OVR".encode('utf-8'))
 
 def is_valid_path(other_path: Path) -> bool:
+    """
+    checks the validity of a given path
+
+    returns true if other_path is contained with BASE_DIR
+    returns false otherwise
+    """
     return other_path.is_relative_to(BASE_DIR)
 
 def logon(connection: socket.socket) -> bool:
+    """
+    returns true is user has successfully logged on
+    returns false otherwise
+    """
     data = connection.recv(1024).decode(FORMAT)
     return data == "LOGON"
 
 def handle_upload(connection: socket.socket, params: list[str]):
-    #print("u", params)
+    """
+    function for handling an upload request across a given connection
+
+    params[0] = bytes in the file to be uploaded
+    params[1] = file name
+    params[2] = optional field indicating directory to upload file to
+    """
+
     file_bytes, file_name = int(params[0]), params[1]
     destination = ""
 
@@ -48,7 +68,6 @@ def handle_upload(connection: socket.socket, params: list[str]):
         send_err(connection)
         return
     
-    #send_ok(connection)
 
     if FILE_LOCKS[str(target_file)].acquire(False):
 
@@ -63,7 +82,6 @@ def handle_upload(connection: socket.socket, params: list[str]):
 
         send_ok(connection)
 
-        #print("before u receive")
         total_received = 0
         with target_file.open("wb") as file:
             while total_received < file_bytes:
@@ -81,7 +99,12 @@ def handle_upload(connection: socket.socket, params: list[str]):
         send_err(connection, "\"File is already being used\"")
 
 def handle_download(connection: socket.socket, params: list[str]):
-    
+    """
+    function for handling a download request across a given connection
+
+    params[0] = path to file to be downloaded
+    """
+
     file_path = (BASE_DIR / params[0]).resolve()
 
     if not is_valid_path(file_path) or not file_path.is_file():
@@ -113,6 +136,11 @@ def handle_download(connection: socket.socket, params: list[str]):
 
 
 def handle_delete(connection: socket, params: list[str]):
+    """
+    function for handling a delete request across a given connection
+
+    params[0] = path to file to be deleted
+    """
     
     file_path = (BASE_DIR / params[0]).resolve()
 
@@ -132,14 +160,17 @@ def handle_delete(connection: socket, params: list[str]):
         send_err(connection, "\"Unable to delete file that is being used\"")
 
 def handle_dir(connection: socket, params: list[str]):
+    """
+    function for handling a dir request across a given connection
+
+    params[0] = optional parameter specifying which directory to print the contents of
+    """
     directory = "."
 
     if len(params) == 1:
         directory = params[0]
 
     target_directory = (BASE_DIR / directory).resolve()
-    #print(target_directory)
-    #print(target_directory.relative_to(BASE_DIR))
 
     if not is_valid_path(target_directory) or not target_directory.is_dir():
         send_err(connection)
@@ -158,7 +189,9 @@ def handle_dir(connection: socket, params: list[str]):
     send_ok(connection, directory_info)
 
 def create_subfolder(connection: socket, target_directory: Path):
-
+    """
+    helper function used by handle_subfolder in order to create a new folder at a given path
+    """
     try:
         target_directory.mkdir()
         send_ok(connection)
@@ -166,7 +199,9 @@ def create_subfolder(connection: socket, target_directory: Path):
         send_err(connection, "\"Can't create directory\"")
 
 def delete_subfolder(connection: socket, target_directory: Path):
-
+    """
+    helper function used by handle_subfolder in order to delete a new folder at a given path
+    """
     if target_directory == BASE_DIR or not target_directory.is_dir():
         send_err(connection)
         return
@@ -179,6 +214,12 @@ def delete_subfolder(connection: socket, target_directory: Path):
 
 
 def handle_subfolder(connection: socket, params: list[int]):
+    """
+    function for handling a subfolder request across a given connection
+
+    params[0] = CREATE or DELETE, tells server whether to create or delete a subfolder
+    params[1] = the directory to create or delete
+    """
     
     # should be CREATE or DELETE
     action = params[0]
@@ -197,12 +238,16 @@ def handle_subfolder(connection: socket, params: list[int]):
         case "DELETE":
             delete_subfolder(connection, target_directory)
         case _:
-            pass
+            send_err(connection)
 
 
 
 def handle_connection(connection: socket, address):
+    """
+    general function for handling the connection between server and client during a session
 
+    this function is run on a new thread for every client that connects to the servers
+    """
     print(f"[*] Established connection: {address}")
 
     if not logon(connection):
@@ -240,6 +285,11 @@ def handle_connection(connection: socket, address):
 
 
 def main():
+    """
+    main fuction
+
+    listens for new connections and creates threads when a user connects to the server
+    """
 
     if not BASE_DIR.is_dir():
         BASE_DIR.mkdir()
