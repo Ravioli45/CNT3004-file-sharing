@@ -153,6 +153,17 @@ def handle_subfolder_delete(client: socket, path: str):
     else:
         print("[*] Subfolder successfully deleted.")
 
+def handle_dir(client: socket, path: str):
+    sendMsg(client, f"DIR {path}")
+
+    data = receiveMsg(client)
+    if not data.startswith("OK"):
+        print(f"[!] Server encountered error when showing directory: {data}")
+    else:
+        print(f"[*] Listing all folders and files under {path}\n")
+        print(" ".join(data.split(" ")[1:])[1:-1])
+
+
 def main():
     client = connect()
     while True:
@@ -180,6 +191,11 @@ def main():
                 handle_subfolder_create(client, data[2])
             elif data[1] == "delete":
                 handle_subfolder_delete(client, data[2])
+        elif cmd == "dir":
+            if len(data) >= 2:
+                handle_dir(client, data[1])
+            else:
+                handle_dir(client, "./")
 
 
 if __name__ == "__main__":
