@@ -76,8 +76,8 @@ def handle_upload(connection: socket.socket, params: list[str]):
             send_overwrite(connection)
 
             answer = connection.recv(BUFFER_SIZE).decode('utf-8')
-            #print(answer)
             if not answer.startswith("OK"):
+                FILE_LOCKS[str(target_file)].release()
                 send_err(connection)
                 return
 
@@ -95,7 +95,6 @@ def handle_upload(connection: socket.socket, params: list[str]):
         FILE_LOCKS[str(target_file)].release()
 
         send_ok(connection)
-        #print("u done")
     else:
         send_err(connection, "\"File is already being used\"")
 
@@ -120,6 +119,7 @@ def handle_download(connection: socket.socket, params: list[str]):
         data = connection.recv(1024).decode(FORMAT)
 
         if not data == "OK":
+            FILE_LOCKS[str(file_path)].release()
             send_err(connection)
             return
 
