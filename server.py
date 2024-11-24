@@ -3,7 +3,7 @@ import socket
 from pathlib import Path
 from collections import defaultdict
 
-IP = "127.0.0.1" #socket.gethostbyname(socket.gethostname())
+IP = socket.gethostbyname(socket.gethostname())
 PORT = 3300
 BUFFER_SIZE = 1024
 FORMAT = "utf-8"
@@ -321,8 +321,6 @@ def main():
                 thread.start()
             
             except socket.timeout:
-                pass
-            except KeyboardInterrupt:
                 pass
 
     except KeyboardInterrupt:
