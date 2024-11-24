@@ -71,6 +71,9 @@ def download(client: socket, srcPath: str, destPath: str):
             file.write(client.recv(SIZE))
             received += SIZE
 
+        print("[*] File downloaded, awaiting confirmation from server...")
+        sendMsg(client, "OK")
+
         res = receiveMsg(client)
         if res.startswith("OK"):
             print(f"[*] File successfully downloaded from server: {res}")
@@ -119,11 +122,22 @@ def upload(client: socket, srcPath: str, destPath: str):
         elif data.startswith("ERR"):
             print(f"[!] Server error occurred when uploading file: {data}")
 
+def handle_delete(client: socket, path: str):
+    sendMsg(client, f"DELETE {path}")
+
+    data = receiveMsg(client)
+
+    if not data.startswith("OK"):
+        print(f"[!] Server encountered error when deleting file: {data}")
+        return
+    else:
+        print("[*] File successfully deleted.")
+
 
 def main():
     client = connect()
     while True:
-        data = input("\n> ") 
+        data = input("\n> ").strip()
         data = data.split(" ")
         cmd = data[0].lower()
 
@@ -141,7 +155,7 @@ def main():
             else:
                 upload(client, data[1], "")
         elif cmd == "delete":
-            pass
+            handle_delete(client, data[1])
         elif cmd == "subfolder":
             pass
 
