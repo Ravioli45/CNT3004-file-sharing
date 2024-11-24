@@ -133,6 +133,25 @@ def handle_delete(client: socket, path: str):
     else:
         print("[*] File successfully deleted.")
 
+def handle_subfolder_create(client: socket, path: str):
+    sendMsg(client, f"SUBFOLDER CREATE {path}")
+
+    data = receiveMsg(client)
+
+    if not data.startswith("OK"):
+        print(f"[!] Server encountered error when creating subfolder: {data}")
+    else:
+        print("[*] Subfolder successfully created.")
+
+def handle_subfolder_delete(client: socket, path: str):
+    sendMsg(client, f"SUBFOLDER DELETE {path}")
+
+    data = receiveMsg(client)
+
+    if not data.startswith("OK"):
+        print(f"[!] Server encountered error when deleting subfolder: {data}")
+    else:
+        print("[*] Subfolder successfully deleted.")
 
 def main():
     client = connect()
@@ -157,7 +176,10 @@ def main():
         elif cmd == "delete":
             handle_delete(client, data[1])
         elif cmd == "subfolder":
-            pass
+            if data[1] == "create":
+                handle_subfolder_create(client, data[2])
+            elif data[1] == "delete":
+                handle_subfolder_delete(client, data[2])
 
 
 if __name__ == "__main__":
