@@ -1,5 +1,3 @@
-# Not complete still working on it, but adding it just becasue
-
 import pandas as pd
 import time 
 import threading
@@ -26,27 +24,36 @@ class Analyze:
 
             UploadTime = UploadEnding - StartUpload
             DownloadTime = DownloadEnd - StartDownload
-            UploadSpeed = DownloadSize / DownloadTime
+            DownloadRate = DownloadSize / DownloadTime
+            UploadSpeed = UploadSize / UploadTime
 
             with self.lock:
-                self.df = self.df.append({ 'FileName': FileName, 'UploadTime': UploadTime, 'DownloadTime': DownloadTime, 'UploadSpeed': UploadSpeed, 'DownloadRate': DownloadRate}, ignore_index = True)
+                self.df = self.df.append({ 
+                'FileName': FileName, 
+                'UploadTime': UploadTime, 
+                'DownloadTime': DownloadTime, 
+                'UploadSpeed': UploadSpeed, 
+                'DownloadRate': DownloadRate}, 
+                ignore_index = True)
 
         except Exception as ex:
             print(f"ERROR: Analyzing File {FileName}: {ex}")
     
-    def Print(self):
-        with self.lock:
-            print(self.df)
-
     def Save(self, FilePath = "NetworkAnalysis.csv"):
         with self.lock:
             self.df.to_csv(FilePath, index = False)
             print(f"Report was saved to {FilePath}")
+    
+    def Print(self):
+        with self.lock:
+            df = pd.DataFrame(self.stats)
+            print(df)
 
-Analyzer = Analyze()
-Analyzer.start_analysis("File1.txt", 1000, 500)
-Analyzer.start_analysis("File2.mp4", 50000, 20000)
+if __name__ == "__main__":
+    Analyzer = Analyze()
+    Analyzer.analyze_stats("File1.txt", 1000, 500)
+    Analyzer.analyze_stats("File2.mp4", 50000, 20000)
 
-time.sleep(10)
-Analyzer.Print()
-Analyzer.Save()
+    time.sleep(10)
+    Analyzer.Print()
+    Analyzer.Save() 
