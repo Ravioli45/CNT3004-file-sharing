@@ -4,15 +4,15 @@ import threading
 
 class Analyze:
     def __init__(self):
-        self.stats = {'FileName' : [], 'DownloadTime' : [], 'DownloadRate' : [], 'UploadTime': [], 'UploadSpeed': []}
+        self.stats = {'FileName' : [], 'DownloadTime' : [], 'DownloadRate' : [], 'UploadTime': [], 'UploadSpeed': [], 'ResponseTime': []}
         self.df = pd.DataFrame(self.stats)
         self.lock = threading.Lock()
 
-    def analyze_stats(self, FileName, DownloadSize, UploadSize):
-        t = threading.Thread(target=self.analyze, args= (FileName, UploadSize, DownloadSize))
+    def analyze_stats(self, FileName, DownloadSize, UploadSize, ResponseTime):
+        t = threading.Thread(target=self.analyze, args= (FileName, UploadSize, DownloadSize, ResponseTime))
         t.start()
 
-    def analyze(self, FileName, DownloadSize, UploadSize):
+    def analyze(self, FileName, DownloadSize, UploadSize, ResponseTime):
         try: 
             StartUpload = time.time()
             time.sleep(UploadSize/1000)
@@ -33,7 +33,8 @@ class Analyze:
                 'UploadTime': UploadTime, 
                 'DownloadTime': DownloadTime, 
                 'UploadSpeed': UploadSpeed, 
-                'DownloadRate': DownloadRate}, 
+                'DownloadRate': DownloadRate,
+                'ResponseTime': ResponseTime}, 
                 ignore_index = True)
 
         except Exception as ex:
@@ -51,8 +52,8 @@ class Analyze:
 
 if __name__ == "__main__":
     Analyzer = Analyze()
-    Analyzer.analyze_stats("File1.txt", 1000, 500)
-    Analyzer.analyze_stats("File2.mp4", 50000, 20000)
+    Analyzer.analyze_stats("File1.txt", 1000, 500, 0.05)
+    Analyzer.analyze_stats("File2.mp4", 50000, 20000, 0.12)
 
     time.sleep(10)
     Analyzer.Print()
