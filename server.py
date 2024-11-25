@@ -259,9 +259,8 @@ def handle_connection(connection: socket.socket, address):
 
     send_ok(connection)
 
-    connection.settimeout(1.0)
-
     while True:
+        connection.settimeout(1.0)
         try:
             data = connection.recv(BUFFER_SIZE).decode(FORMAT)
 
@@ -271,6 +270,7 @@ def handle_connection(connection: socket.socket, address):
                 case "LOGOFF":
                     break
                 case "UPLOAD":
+                    connection.settimeout(None)
                     handle_upload(connection, command[1:])
                 case "DOWNLOAD":
                     handle_download(connection, command[1:])
